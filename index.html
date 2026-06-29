@@ -29,24 +29,27 @@
   .switch-3d { font-size: 13px; font-weight: 600; text-decoration: none; color: #1a1205; background: linear-gradient(180deg,#e8b24a,#d2932a); padding: 8px 14px; border-radius: 999px; white-space: nowrap; }
   .hidden { display: none !important; }
 
-  #loading { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: #1b140c; color: #d8c9ad; font-size: 15px; }
-
-  /* White fade overlay for the reveal */
-  #flash { position: fixed; inset: 0; z-index: 1500; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.75s ease; }
-  #flash.on { opacity: 1; }
-  #fx { position: fixed; inset: 0; z-index: 1520; pointer-events: none; }
-
-  /* Museum "start here" marker */
-  .museum-pin {
-    width: 56px; height: 56px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: 30px;
-    background: radial-gradient(circle at 50% 35%, #f6d28a, #d2932a);
-    border: 3px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-    cursor: pointer; animation: pulse 1.8s ease-in-out infinite;
+  /* Splash: the AI end-frame still, with a button over the dome */
+  #splash { position: fixed; inset: 0; z-index: 1600; background: #0b0d10 center/cover no-repeat; }
+  #splash .scrim { position: absolute; inset: 0; background: radial-gradient(circle at 42% 32%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.35) 100%); }
+  .dome-btn {
+    position: absolute; left: 42%; top: 30%; transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    background: none; border: none; cursor: pointer; color: #fff;
   }
-  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(232,178,74,0.6);} 50% { box-shadow: 0 0 0 14px rgba(232,178,74,0);} }
-  .leaflet-tooltip.start-tip { background:#1b140c; color:#f5efe2; border:1px solid #e8b24a; font-weight:700; font-size:13px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.5); }
-  .leaflet-tooltip.start-tip::before { border-top-color:#e8b24a; }
+  .dome-btn .ring {
+    width: 84px; height: 84px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 34px; color: #1a1205;
+    background: radial-gradient(circle at 50% 35%, #f6d28a, #d2932a);
+    border: 3px solid #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  .dome-btn .lbl { font-size: 14px; font-weight: 700; letter-spacing: 0.02em; text-shadow: 0 2px 10px rgba(0,0,0,0.9); }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(232,178,74,0.7);} 50% { box-shadow: 0 0 0 20px rgba(232,178,74,0);} }
+
+  /* Detonation video */
+  #intro-video { position: fixed; inset: 0; z-index: 1700; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  #skip { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); right: 18px; z-index: 1710; font-size: 12px; color: #fff; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.3); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
 
   .disc-img { width: 100%; height: 100%; border-radius: 50%; border: 2px solid #e8b24a; box-shadow: 0 1px 4px rgba(0,0,0,0.6); background-color: #2a2118; background-repeat: no-repeat; }
   .leaflet-marker-icon .disc-img:hover { border-color: #fff; }
@@ -65,12 +68,11 @@
 </head>
 <body>
   <div id="map"></div>
-  <div id="flash"></div>
-  <canvas id="fx"></canvas>
+
   <div class="bar">
     <div>
       <div class="title">Return Them Home</div>
-      <div class="count" id="subtitle">Tap the British Museum to begin →</div>
+      <div class="count" id="count"></div>
     </div>
     <div class="spacer"></div>
     <div class="ctl hidden" id="ctl-years">
@@ -82,21 +84,31 @@
     <div class="ctl hidden" id="ctl-q"><input type="search" id="q" placeholder="Search name / country" /></div>
     <a class="switch-3d" href="../return-them-home/?full=1">🌐 3D Globe</a>
   </div>
-  <div id="loading">Loading the collection…</div>
+
+  <!-- Intro: end-frame still with a button over the dome -->
+  <div id="splash" style="background-image:url(splash.jpg)">
+    <div class="scrim"></div>
+    <button class="dome-btn" id="domeBtn">
+      <span class="ring">▶</span>
+      <span class="lbl">Press to release the collection</span>
+    </button>
+  </div>
+
+  <!-- 5-second detonation video (plays on press) -->
+  <video id="intro-video" class="hidden" playsinline preload="auto" src="intro.mp4"></video>
+  <button id="skip" class="hidden">Skip ›</button>
 
   <script>
     const ATLAS_N = 32;
     const MAX_MARKERS = 450;
-    const LONDON = [51.5194, -0.1269];
     let ALL = [];
     let started = false;
 
     const map = L.map('map', { zoomControl: false, attributionControl: false, worldCopyJump: true })
-      .setView([51.0, 4.0], 5); // open framing UK + Europe, museum pin at London
+      .setView([25, 12], 3);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 18 }).addTo(map);
 
-    const flash = document.getElementById('flash');
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
     const dateText = (a) => a.date_text || (a.year == null ? 'Unknown' : (a.year < 0 ? Math.abs(a.year) + ' BC' : a.year + ' AD'));
 
@@ -145,100 +157,40 @@
         total > f.length ? `${f.length.toLocaleString()} of ${total.toLocaleString()} in range` : `${f.length.toLocaleString()} shown`;
     }
 
-    // Intro: museum "start here" marker -> fade to white -> reveal discs.
-    const museumIcon = L.divIcon({ className: '', html: '<div class="museum-pin">🏛️</div>', iconSize: [56, 56], iconAnchor: [28, 28] });
-    const startMarker = L.marker(LONDON, { icon: museumIcon, zIndexOffset: 1000 })
-      .bindTooltip('Start here — the British Museum', { permanent: true, direction: 'top', offset: [0, -26], className: 'start-tip' })
-      .addTo(map);
-    startMarker.on('click', begin);
+    // ---- Intro sequence: press dome -> play detonation -> reveal map ----
+    const splash = document.getElementById('splash');
+    const video = document.getElementById('intro-video');
+    const skip = document.getElementById('skip');
 
-    function begin() {
+    function reveal() {
       if (started) return;
       started = true;
-      flash.classList.add('on'); // fade to white (0.75s)
-      setTimeout(() => {
-        // Prepare the revealed scene behind the white.
-        map.removeLayer(startMarker);
-        map.setView([25, 12], 3);
-        document.getElementById('ctl-years').classList.remove('hidden');
-        document.getElementById('ctl-q').classList.remove('hidden');
-        document.getElementById('subtitle').id = 'count';
-        render();
-        // Arching firework sprites over the white, then dissolve to reveal.
-        fireworks(1900, () => flash.classList.remove('on'));
-      }, 700);
+      video.pause();
+      video.classList.add('hidden');
+      skip.classList.add('hidden');
+      splash.classList.add('hidden');
+      document.getElementById('ctl-years').classList.remove('hidden');
+      document.getElementById('ctl-q').classList.remove('hidden');
+      render(); // discs where they landed
     }
 
-    // Canvas fireworks: warm rockets arc up from the base and burst into
-    // glittering sprites — tuned to read on the white flash.
-    const fxCanvas = document.getElementById('fx');
-    const fxCtx = fxCanvas.getContext('2d');
-    const WARM = ['#e8b24a', '#f6d28a', '#d2932a', '#c0541f', '#b03a2e', '#f0a020'];
-    function fireworks(duration, onFade) {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const W = window.innerWidth, H = window.innerHeight;
-      fxCanvas.width = W * dpr; fxCanvas.height = H * dpr;
-      fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      const rockets = [], sparks = [];
-      const rnd = (a, b) => a + Math.random() * (b - a);
-      function launch() {
-        rockets.push({
-          x: rnd(W * 0.2, W * 0.8), y: H + 8,
-          vx: rnd(-2.4, 2.4), vy: rnd(-15, -11),
-          color: WARM[(Math.random() * WARM.length) | 0], trail: [],
-        });
-      }
-      function burst(x, y, color) {
-        const n = 46;
-        for (let i = 0; i < n; i++) {
-          const a = (i / n) * Math.PI * 2 + rnd(-0.1, 0.1);
-          const sp = rnd(1.5, 5.5);
-          sparks.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-            life: 1, decay: rnd(0.012, 0.026), color });
-        }
-      }
-      const t0 = performance.now();
-      let lastLaunch = 0;
-      let faded = false;
-      function frame(now) {
-        const el = now - t0;
-        fxCtx.clearRect(0, 0, W, H);
-        if (el < 1200 && now - lastLaunch > 230) { launch(); lastLaunch = now; }
-
-        for (let i = rockets.length - 1; i >= 0; i--) {
-          const r = rockets[i];
-          r.vy += 0.22; r.x += r.vx; r.y += r.vy;
-          r.trail.push([r.x, r.y]); if (r.trail.length > 8) r.trail.shift();
-          fxCtx.strokeStyle = r.color; fxCtx.lineWidth = 2;
-          fxCtx.globalAlpha = 0.8; fxCtx.beginPath();
-          r.trail.forEach((p, k) => k ? fxCtx.lineTo(p[0], p[1]) : fxCtx.moveTo(p[0], p[1]));
-          fxCtx.stroke();
-          if (r.vy >= -1) { burst(r.x, r.y, r.color); rockets.splice(i, 1); }
-        }
-
-        fxCtx.globalAlpha = 1;
-        for (let i = sparks.length - 1; i >= 0; i--) {
-          const s = sparks[i];
-          s.vy += 0.06; s.vx *= 0.985; s.vy *= 0.985;
-          s.x += s.vx; s.y += s.vy; s.life -= s.decay;
-          if (s.life <= 0) { sparks.splice(i, 1); continue; }
-          fxCtx.globalAlpha = Math.max(s.life, 0);
-          fxCtx.fillStyle = s.color;
-          fxCtx.shadowColor = s.color; fxCtx.shadowBlur = 8;
-          fxCtx.beginPath(); fxCtx.arc(s.x, s.y, 2.4, 0, Math.PI * 2); fxCtx.fill();
-        }
-        fxCtx.shadowBlur = 0; fxCtx.globalAlpha = 1;
-
-        if (!faded && el > duration * 0.55) { faded = true; if (onFade) onFade(); }
-        if (el < duration + 1200 && (rockets.length || sparks.length || el < 1300)) {
-          requestAnimationFrame(frame);
-        } else {
-          fxCtx.clearRect(0, 0, W, H);
-        }
-      }
-      requestAnimationFrame(frame);
+    function play() {
+      splash.classList.add('hidden');
+      video.classList.remove('hidden');
+      skip.classList.remove('hidden');
+      let done = false;
+      const finish = () => { if (!done) { done = true; reveal(); } };
+      video.onended = finish;
+      video.onerror = finish;               // no video file -> straight to map
+      setTimeout(finish, 8000);             // safety fallback
+      try {
+        const p = video.play();
+        if (p && p.catch) p.catch(() => { video.muted = true; video.play().catch(finish); });
+      } catch (e) { finish(); }
     }
+    document.getElementById('domeBtn').addEventListener('click', play);
+    skip.addEventListener('click', reveal);
+    video.addEventListener('click', reveal);
 
     let t;
     const onChange = () => { clearTimeout(t); t = setTimeout(render, 200); };
@@ -256,8 +208,7 @@
         image_url: a.image_url || '', image_source_url: a.image_source_url || '',
         museum_number: a.museum_number || '', atlas: a.atlas,
       })).filter((a) => typeof a.lat === 'number' && typeof a.lng === 'number' && a.atlas);
-      document.getElementById('loading').remove();
-    }).catch((e) => { document.getElementById('loading').textContent = 'Failed to load: ' + e.message; });
+    }).catch((e) => console.error('load failed', e));
   </script>
 </body>
 </html>
