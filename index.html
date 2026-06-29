@@ -33,7 +33,7 @@
   #splash { position: fixed; inset: 0; z-index: 1600; background: #0b0d10 center/cover no-repeat; }
   #splash .scrim { position: absolute; inset: 0; background: radial-gradient(circle at 42% 32%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.35) 100%); }
   .dome-btn {
-    position: absolute; left: 42%; top: 30%; transform: translate(-50%, -50%);
+    position: absolute; left: 42%; top: 30%; transform: translate(-50%, -50%) translate(42px, -84px);
     display: flex; flex-direction: column; align-items: center; gap: 10px;
     background: none; border: none; cursor: pointer; color: #fff;
   }
@@ -89,8 +89,8 @@
   <div id="splash" style="background-image:url(splash.jpg)">
     <div class="scrim"></div>
     <button class="dome-btn" id="domeBtn">
-      <span class="ring">▶</span>
-      <span class="lbl">Press to release the collection</span>
+      <span class="ring">🏛️</span>
+      <span class="lbl">Press Button To Release</span>
     </button>
   </div>
 
