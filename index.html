@@ -64,6 +64,34 @@
   .pc-meta b { color:#6a5c40; font-weight: 600; }
   .pc-desc { font-size: 12.5px; line-height: 1.45; color:#5a513f; max-height: 6.5em; overflow:auto; }
   .pc-link { display:inline-block; margin-top:10px; font-size:13px; font-weight:600; color:#b07d1a; text-decoration:none; }
+
+  /* Country panel (browse-by-country) */
+  #panel { position: fixed; left: 0; top: 0; bottom: 0; width: min(360px, 86vw); z-index: 1100;
+    display: flex; flex-direction: column; background: rgba(14,16,20,0.96);
+    border-right: 1px solid rgba(255,255,255,0.14); transform: translateX(-104%); transition: transform .25s ease; }
+  #panel.open { transform: none; }
+  #panel .ph { display:flex; align-items:flex-start; justify-content:space-between; padding: calc(env(safe-area-inset-top) + 56px) 16px 12px; border-bottom:1px solid rgba(255,255,255,0.1); }
+  #panel .pt { font-size:18px; font-weight:700; color:#f5efe2; }
+  #panel .pc2 { font-size:12px; color:#e8b24a; margin-top:3px; }
+  #panel .x { background:none; border:none; color:#cfd2d6; font-size:24px; line-height:1; cursor:pointer; }
+  #panel .grid { padding:12px; display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; overflow:auto; }
+  #panel .thumb { width:100%; aspect-ratio:1; border:1px solid rgba(255,255,255,0.14); border-radius:8px; background-color:#2a2118; background-repeat:no-repeat; cursor:pointer; padding:0; transition: transform .1s, border-color .1s; }
+  #panel .thumb:hover { transform: scale(1.06); border-color:#e8b24a; }
+
+  /* Detail card (modal) */
+  #card { position: fixed; inset:0; z-index:1300; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,0.55); padding:16px; }
+  #card.open { display:flex; }
+  #card .box { position:relative; width:min(420px,94vw); max-height:90vh; overflow:auto; background:#fff; border-radius:14px; }
+  #card .ci { width:100%; height:260px; background-color:#2a2118; background-repeat:no-repeat; }
+  #card .ci img { width:100%; height:100%; object-fit:cover; display:block; }
+  #card .cx { position:absolute; top:8px; right:8px; width:34px; height:34px; border-radius:50%; background:rgba(0,0,0,0.5); color:#fff; border:none; font-size:22px; cursor:pointer; z-index:2; }
+  #card .cb { padding:16px 18px; color:#241c10; }
+  #card .cn { font-size:20px; font-weight:700; line-height:1.25; }
+  #card .co { color:#b07d1a; font-size:14px; font-weight:600; margin-top:2px; }
+  #card .cm { margin:10px 0; font-size:14px; color:#4a4030; line-height:1.5; }
+  #card .cm b { color:#6a5c40; }
+  #card .cd { font-size:13px; line-height:1.5; color:#5a513f; }
+  #card .cl { display:inline-block; margin-top:12px; font-size:14px; font-weight:600; color:#b07d1a; text-decoration:none; }
 </style>
 </head>
 <body>
@@ -98,6 +126,30 @@
   <video id="intro-video" class="hidden" playsinline preload="auto" poster="splash.jpg" src="intro.mp4"></video>
   <button id="skip" class="hidden">Skip ›</button>
 
+  <!-- Country panel: thumbnail grid of a searched country's collection -->
+  <div id="panel">
+    <div class="ph">
+      <div><div class="pt" id="panelTitle"></div><div class="pc2" id="panelCount"></div></div>
+      <button class="x" id="panelClose" aria-label="Close">×</button>
+    </div>
+    <div class="grid" id="panelGrid"></div>
+  </div>
+
+  <!-- Detail card -->
+  <div id="card">
+    <div class="box">
+      <button class="cx" id="cardClose" aria-label="Close">×</button>
+      <div class="ci"><img id="cardImg" alt="" /></div>
+      <div class="cb">
+        <div class="cn" id="cardName"></div>
+        <div class="co" id="cardOrigin"></div>
+        <div class="cm" id="cardMeta"></div>
+        <div class="cd" id="cardDesc"></div>
+        <a class="cl" id="cardLink" target="_blank" rel="noopener">View at the British Museum ↗</a>
+      </div>
+    </div>
+  </div>
+
   <script>
     const ATLAS_N = 32;
     const MAX_MARKERS = 450;
@@ -129,6 +181,57 @@
         ${a.description ? `<div class="pc-desc">${esc(a.description)}</div>` : ''}
         ${url ? `<a class="pc-link" href="${esc(url)}" target="_blank" rel="noopener">View at the British Museum ↗</a>` : ''}
       </div></div>`;
+    }
+
+    // ---- Country panel + detail card (browse a searched country) ----
+    const COUNTRIES = new Map();
+    const panel = document.getElementById('panel');
+    const card = document.getElementById('card');
+    const hidePanel = () => panel.classList.remove('open');
+    document.getElementById('panelClose').onclick = hidePanel;
+    document.getElementById('cardClose').onclick = () => card.classList.remove('open');
+    card.addEventListener('click', (e) => { if (e.target === card) card.classList.remove('open'); });
+
+    function openCountry(name) {
+      const items = COUNTRIES.get(name) || [];
+      document.getElementById('panelTitle').textContent = name;
+      document.getElementById('panelCount').textContent =
+        items.length + ' object' + (items.length === 1 ? '' : 's') + ' — tap one for details';
+      const grid = document.getElementById('panelGrid');
+      grid.innerHTML = '';
+      for (const a of items) {
+        const b = document.createElement('button');
+        b.className = 'thumb'; b.title = a.name; b.style.cssText = thumbBg(a);
+        b.onclick = () => openDetail(a);
+        grid.appendChild(b);
+      }
+      panel.classList.add('open');
+    }
+
+    function openDetail(a) {
+      const ci = document.querySelector('#card .ci');
+      ci.style.cssText = thumbBg(a); // atlas-tile fallback behind the photo
+      const img = document.getElementById('cardImg');
+      img.onerror = () => { img.style.display = 'none'; };
+      img.style.display = ''; img.src = a.image_url || '';
+      document.getElementById('cardName').textContent = a.name;
+      document.getElementById('cardOrigin').textContent = a.origin || a.country || '';
+      const rows = [['Date', dateText(a)], ['Material', a.material], ['Museum no.', a.museum_number]].filter((r) => r[1]);
+      document.getElementById('cardMeta').innerHTML = rows.map((r) => `<b>${r[0]}:</b> ${esc(r[1])}`).join('<br>');
+      document.getElementById('cardDesc').textContent = a.description || '';
+      const link = document.getElementById('cardLink');
+      const url = a.image_source_url || a.image_url;
+      link.style.display = url ? '' : 'none'; if (url) link.href = url;
+      card.classList.add('open');
+    }
+
+    // Open the panel when the search matches a country name.
+    function updatePanel() {
+      const q = document.getElementById('q').value.trim().toLowerCase();
+      if (!q) { hidePanel(); return; }
+      const keys = [...COUNTRIES.keys()].filter((k) => k && k.toLowerCase().includes(q));
+      if (keys.length) { keys.sort((a, b) => a.length - b.length); openCountry(keys[0]); }
+      else hidePanel();
     }
 
     const layer = L.layerGroup().addTo(map);
@@ -193,7 +296,7 @@
     video.addEventListener('click', reveal);
 
     let t;
-    const onChange = () => { clearTimeout(t); t = setTimeout(render, 200); };
+    const onChange = () => { clearTimeout(t); t = setTimeout(() => { render(); updatePanel(); }, 200); };
     ['yearFrom', 'yearTo', 'q'].forEach((id) => {
       const el = document.getElementById(id);
       el.addEventListener('input', onChange);
@@ -203,11 +306,16 @@
     fetch('artifacts.json').then((r) => r.json()).then((raw) => {
       ALL = raw.map((a) => ({
         name: a.name || 'Object', origin: a.origin || a.origin_country || '',
+        country: a.origin_country || a.origin || 'Unknown',
         lat: a.lat, lng: a.lng, year: typeof a.year === 'number' ? a.year : null,
         material: a.material || '', date_text: a.date_text || '', description: a.description || '',
         image_url: a.image_url || '', image_source_url: a.image_source_url || '',
         museum_number: a.museum_number || '', atlas: a.atlas,
       })).filter((a) => typeof a.lat === 'number' && typeof a.lng === 'number' && a.atlas);
+      for (const a of ALL) {
+        if (!COUNTRIES.has(a.country)) COUNTRIES.set(a.country, []);
+        COUNTRIES.get(a.country).push(a);
+      }
     }).catch((e) => console.error('load failed', e));
   </script>
 </body>
