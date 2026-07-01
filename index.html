@@ -20,7 +20,9 @@
     background: linear-gradient(180deg, rgba(20,15,8,0.94), rgba(20,15,8,0.0));
   }
   .bar .title { font-size: 24px; font-weight: 700; text-shadow: 0 1px 6px rgba(0,0,0,0.8); }
-  .bar .count { font-size: 14px; color: #d8c9ad; }
+  .bar .count { font-size: 14px; color: #f5efe2; text-shadow: 0 1px 6px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.9); }
+  .reset-btn { font-size: 13px; font-weight: 600; color: #f5efe2; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.3); padding: 8px 14px; border-radius: 999px; white-space: nowrap; cursor: pointer; }
+  .reset-btn:hover { background: rgba(0,0,0,0.6); }
   .bar .spacer { flex: 1 1 12px; }
   .ctl { display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.35); padding: 7px 10px; border-radius: 999px; backdrop-filter: blur(6px); }
   .ctl label { font-size: 11px; color: #d8c9ad; }
@@ -110,6 +112,7 @@
       <input type="number" id="yearTo" value="2025" step="100" inputmode="numeric" />
     </div>
     <div class="ctl hidden" id="ctl-q"><input type="search" id="q" placeholder="Search name / country" /></div>
+    <button class="reset-btn hidden" id="resetBtn">↺ Reset</button>
     <a class="switch-3d" href="../return-them-home/?full=1">🌐 3D Globe</a>
   </div>
 
@@ -274,7 +277,26 @@
       splash.classList.add('hidden');
       document.getElementById('ctl-years').classList.remove('hidden');
       document.getElementById('ctl-q').classList.remove('hidden');
+      document.getElementById('resetBtn').classList.remove('hidden');
       render(); // discs where they landed
+    }
+
+    function resetApp() {
+      started = false;
+      video.pause();
+      video.currentTime = 0;
+      video.classList.add('hidden');
+      skip.classList.add('hidden');
+      document.getElementById('ctl-years').classList.add('hidden');
+      document.getElementById('ctl-q').classList.add('hidden');
+      document.getElementById('resetBtn').classList.add('hidden');
+      document.getElementById('panel').classList.remove('open');
+      document.getElementById('card').classList.remove('open');
+      document.getElementById('yearFrom').value = -4000;
+      document.getElementById('yearTo').value = 2025;
+      document.getElementById('q').value = '';
+      layer.clearLayers();
+      splash.classList.remove('hidden');
     }
 
     function play() {
@@ -294,6 +316,7 @@
     document.getElementById('domeBtn').addEventListener('click', play);
     skip.addEventListener('click', reveal);
     video.addEventListener('click', reveal);
+    document.getElementById('resetBtn').addEventListener('click', resetApp);
 
     let t;
     const onChange = () => { clearTimeout(t); t = setTimeout(() => { render(); updatePanel(); }, 200); };
