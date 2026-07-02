@@ -42,7 +42,10 @@
   #splash { position: fixed; inset: 0; z-index: 1600; background: #0b0d10 center/cover no-repeat; }
   #splash .scrim { position: absolute; inset: 0; background: radial-gradient(circle at 42% 32%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.35) 100%); }
   .dome-btn {
-    position: absolute; left: 42%; top: 30%; transform: translate(-50%, -50%) translate(107px, -84px);
+    /* left/top are set by placeDomeBtn(), which anchors the button to the
+       dome's pixel position in splash.jpg under the center/cover crop, so it
+       stays on the dome at every viewport size. These are the fallback. */
+    position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%);
     display: flex; flex-direction: column; align-items: center; gap: 10px;
     background: none; border: none; cursor: pointer; color: #fff;
   }
@@ -329,7 +332,21 @@
         if (p && p.catch) p.catch(() => { video.muted = true; video.play().catch(finish); });
       } catch (e) { finish(); }
     }
-    document.getElementById('domeBtn').addEventListener('click', play);
+    // Pin the button to the dome in splash.jpg. The splash uses
+    // background: center/cover, so a point (ix, iy) in the 1280x720 image maps
+    // to viewport centre + (point - image centre) * cover scale. (645, 132) is
+    // the hand-tuned dome spot (the old 42% + 107px/-84px offsets at 1280x720).
+    const domeBtn = document.getElementById('domeBtn');
+    function placeDomeBtn() {
+      const iw = 1280, ih = 720, ix = 653, iy = 132;
+      const s = Math.max(innerWidth / iw, innerHeight / ih);
+      domeBtn.style.left = (innerWidth / 2 + (ix - iw / 2) * s) + 'px';
+      domeBtn.style.top = (innerHeight / 2 + (iy - ih / 2) * s) + 'px';
+    }
+    placeDomeBtn();
+    addEventListener('resize', placeDomeBtn);
+
+    domeBtn.addEventListener('click', play);
     skip.addEventListener('click', reveal);
     video.addEventListener('click', reveal);
     document.getElementById('resetBtn').addEventListener('click', resetApp);
