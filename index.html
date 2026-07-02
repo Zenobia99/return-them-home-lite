@@ -2,11 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#1b140c" />
 <title>Return Them Home — Map</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Defence-in-depth: only Leaflet from unpkg may run; images limited to the
+     sources this page actually uses. -->
+<meta
+  http-equiv="Content-Security-Policy"
+  content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https://media.britishmuseum.org https://server.arcgisonline.com; media-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'"
+/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
@@ -163,21 +171,28 @@
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 18 }).addTo(map);
 
-    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    // https-only guard for links/images built from data fields, so a poisoned
+    // record can't smuggle a javascript: URL into an href or src.
+    const httpsOnly = (u) => (u && /^https:\/\//i.test(u) ? u : '');
     const dateText = (a) => a.date_text || (a.year == null ? 'Unknown' : (a.year < 0 ? Math.abs(a.year) + ' BC' : a.year + ' AD'));
 
     function thumbBg(a) {
       if (!a.atlas) return '';
-      const x = a.atlas.u * ATLAS_N / (ATLAS_N - 1) * 100;
-      const y = a.atlas.v * ATLAS_N / (ATLAS_N - 1) * 100;
-      return `background-image:url(atlas/atlas_${a.atlas.atlas_index}.jpg);background-size:${ATLAS_N * 100}% ${ATLAS_N * 100}%;background-position:${x}% ${y}%;`;
+      // Coerce to numbers so data values can never break out of the style attr.
+      const x = +a.atlas.u * ATLAS_N / (ATLAS_N - 1) * 100;
+      const y = +a.atlas.v * ATLAS_N / (ATLAS_N - 1) * 100;
+      const idx = +a.atlas.atlas_index;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(idx)) return '';
+      return `background-image:url(atlas/atlas_${idx}.jpg);background-size:${ATLAS_N * 100}% ${ATLAS_N * 100}%;background-position:${x}% ${y}%;`;
     }
     function discIcon(a) {
       return L.divIcon({ className: '', html: `<div class="disc-img" style="${thumbBg(a)}"></div>`, iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -14] });
     }
     function popupHtml(a) {
-      const url = a.image_source_url || a.image_url || '';
-      return `<div class="pc"><div class="pc-img" style="${thumbBg(a)}">${a.image_url ? `<img src="${esc(a.image_url)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.remove()">` : ''}</div><div class="pc-body">
+      const url = httpsOnly(a.image_source_url || a.image_url);
+      const img = httpsOnly(a.image_url);
+      return `<div class="pc"><div class="pc-img" style="${thumbBg(a)}">${img ? `<img src="${esc(img)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.remove()">` : ''}</div><div class="pc-body">
         <div class="pc-name">${esc(a.name)}</div><div class="pc-origin">${esc(a.origin)}</div>
         <div class="pc-meta"><b>Date:</b> ${esc(dateText(a))}${a.material ? `<br><b>Material:</b> ${esc(a.material)}` : ''}${a.museum_number ? `<br><b>Museum no.:</b> ${esc(a.museum_number)}` : ''}</div>
         ${a.description ? `<div class="pc-desc">${esc(a.description)}</div>` : ''}
@@ -215,14 +230,16 @@
       ci.style.cssText = thumbBg(a); // atlas-tile fallback behind the photo
       const img = document.getElementById('cardImg');
       img.onerror = () => { img.style.display = 'none'; };
-      img.style.display = ''; img.src = a.image_url || '';
+      const photo = httpsOnly(a.image_url);
+      if (photo) { img.style.display = ''; img.src = photo; }
+      else { img.style.display = 'none'; img.removeAttribute('src'); }
       document.getElementById('cardName').textContent = a.name;
       document.getElementById('cardOrigin').textContent = a.origin || a.country || '';
       const rows = [['Date', dateText(a)], ['Material', a.material], ['Museum no.', a.museum_number]].filter((r) => r[1]);
       document.getElementById('cardMeta').innerHTML = rows.map((r) => `<b>${r[0]}:</b> ${esc(r[1])}`).join('<br>');
       document.getElementById('cardDesc').textContent = a.description || '';
       const link = document.getElementById('cardLink');
-      const url = a.image_source_url || a.image_url;
+      const url = httpsOnly(a.image_source_url || a.image_url);
       link.style.display = url ? '' : 'none'; if (url) link.href = url;
       card.classList.add('open');
     }
